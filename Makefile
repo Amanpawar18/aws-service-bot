@@ -1,0 +1,54 @@
+.PHONY: install test-backend test-frontend test-infra test-all test-integration lint typecheck fmt build up down deploy run-backend run-frontend health
+
+install:
+	cd backend && uv sync --group dev
+	cd frontend && uv sync --group dev
+	cd infra && uv sync --group dev
+
+test-backend:
+	cd backend && uv run pytest tests/ -v
+
+test-frontend:
+	cd frontend && uv run pytest tests/ -v || [ $$? -eq 5 ]
+
+test-infra:
+	cd infra && uv run pytest tests/ -v || [ $$? -eq 5 ]
+	
+test-all: test-backend test-frontend test-infra
+
+test-integration:
+	uv run pytest tests/integration/ -v
+
+lint:
+	cd backend && uv run ruff check .
+	cd frontend && uv run ruff check .
+	cd infra && uv run ruff check .
+
+typecheck:
+	cd backend && uv run mypy app/
+	cd frontend && uv run mypy app/
+
+fmt:
+	cd backend && uv run ruff format . && uv run ruff check --fix .
+	cd frontend && uv run ruff format . && uv run ruff check --fix .
+
+build:
+	docker compose build
+
+up:
+	docker compose up
+
+down:
+	docker compose down
+
+deploy:
+	cd infra && TAVILY_API_KEY=$$TAVILY_API_KEY uv run cdk deploy --all
+
+run-backend:
+	cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+run-frontend:
+	cd frontend && uv run streamlit run app/main.py --server.port 8501
+
+health:
+	curl -s http://localhost:8000/health | python3 -m json.tool
