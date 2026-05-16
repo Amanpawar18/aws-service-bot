@@ -44,11 +44,11 @@ down:
 deploy:
 	cd infra && TAVILY_API_KEY=$$TAVILY_API_KEY uv run cdk deploy --all
 
-run-backend:
+run-be:
 	cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-run-frontend:
-	cd frontend && uv run streamlit run app/main.py --server.port 8501
+run-fe:
+	cd frontend && PYTHONPATH=. uv run streamlit run app/main.py --server.port 8501
 
 health:
 	curl -s http://localhost:8000/health | python3 -m json.tool

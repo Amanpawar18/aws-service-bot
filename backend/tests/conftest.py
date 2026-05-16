@@ -1,5 +1,9 @@
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+
+# Set before any app module is imported so pydantic-settings can read it
+os.environ.setdefault("TAVILY_API_KEY", "test-key-for-unit-tests")
 
 import pytest
 from fastapi import FastAPI

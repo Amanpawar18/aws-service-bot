@@ -14,6 +14,12 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
 
 
+class ChatResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    role: Literal["assistant"]
+    content: str
+
+
 class MessageSchema(BaseModel):
     model_config = ConfigDict(frozen=True)
     role: Literal["user", "assistant"]
