@@ -76,9 +76,39 @@ class EcsStack(cdk.Stack):
 
         backend.target_group.configure_health_check(path="/health")
 
+        backend_url = f"http://{backend.load_balancer.load_balancer_dns_name}"
+
+        frontend = ecs_patterns.ApplicationLoadBalancedFargateService(
+            self,
+            "FrontendService",
+            cluster=cluster,
+            cpu=512,
+            memory_limit_mib=1024,
+            desired_count=1,
+            assign_public_ip=True,
+            task_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PUBLIC),
+            public_load_balancer=True,
+            task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
+                image=ecs.ContainerImage.from_ecr_repository(
+                    ecr_stack.frontend_repo, "latest"
+                ),
+                container_port=8501,
+                environment={"BACKEND_URL": backend_url},
+            ),
+        )
+
+        frontend.target_group.configure_health_check(path="/_stcore/health")
+
         cdk.CfnOutput(
             self,
             "BackendUrl",
-            value=f"http://{backend.load_balancer.load_balancer_dns_name}",
+            value=backend_url,
             description="Backend ECS Fargate URL",
+        )
+
+        cdk.CfnOutput(
+            self,
+            "FrontendUrl",
+            value=f"http://{frontend.load_balancer.load_balancer_dns_name}",
+            description="Frontend ECS Fargate URL",
         )
