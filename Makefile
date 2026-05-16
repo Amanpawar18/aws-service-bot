@@ -59,12 +59,12 @@ ecr-login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
 push-backend: ecr-login
-	docker build -t aws-support-bot-backend ./backend
+	docker build --platform linux/amd64 -t aws-support-bot-backend ./backend
 	docker tag aws-support-bot-backend:latest $(ECR_REGISTRY)/aws-support-bot-backend:latest
 	docker push $(ECR_REGISTRY)/aws-support-bot-backend:latest
 
 push-frontend: ecr-login
-	docker build -t aws-support-bot-frontend ./frontend
+	docker build --platform linux/amd64 -t aws-support-bot-frontend ./frontend
 	docker tag aws-support-bot-frontend:latest $(ECR_REGISTRY)/aws-support-bot-frontend:latest
 	docker push $(ECR_REGISTRY)/aws-support-bot-frontend:latest
 
