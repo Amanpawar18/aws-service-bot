@@ -4,10 +4,10 @@ WORKDIR /app
 
 RUN pip install uv --no-cache-dir
 
-COPY pyproject.toml .
-RUN uv sync --no-dev
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-dev --frozen
 
 COPY app/ app/
 
 EXPOSE 8000
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-dev", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,4 +1,4 @@
-.PHONY: install test-backend test-frontend test-infra test-all test-integration lint typecheck fmt build up down deploy run-backend run-frontend health
+.PHONY: install test-backend test-frontend test-infra test-all test-integration lint typecheck fmt build up down deploy run-be run-fe health
 
 install:
 	cd backend && uv sync --group dev

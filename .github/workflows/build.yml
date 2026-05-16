@@ -1,0 +1,24 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-backend:
+    name: Build backend image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -t aws-support-bot-backend:${{ github.sha }} ./backend
+
+  build-frontend:
+    name: Build frontend image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -t aws-support-bot-frontend:${{ github.sha }} ./frontend
