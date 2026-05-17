@@ -61,11 +61,10 @@ Work is divided into small, independent phases (see the design spec). Each phase
 | Tool | Purpose | Config location |
 |---|---|---|
 | `uv` | Package management | `pyproject.toml` |
-| `ruff 0.15.13` | Lint + format | `[tool.ruff]` in `pyproject.toml` |
-| `mypy 2.1.0` | Type checking (strict mode) | `[tool.mypy]` in `pyproject.toml` |
-| `pytest 9.0.3` | Test runner | `[tool.pytest.ini_options]` in `pyproject.toml` |
-| `pytest-asyncio 1.1.0` | Async test support | `asyncio_mode = "auto"` |
-| `pytest-mock 3.15.1` | Mocking | — |
+| `ruff` | Lint + format | `[tool.ruff]` in `pyproject.toml` |
+| `mypy` | Type checking (strict mode) | `[tool.mypy]` in `pyproject.toml` |
+| `pytest` | Test runner | `[tool.pytest.ini_options]` in `pyproject.toml` |
+| `pytest-asyncio` | Async test support | `asyncio_mode = "auto"` |
 
 Run before presenting any phase as complete:
 
@@ -80,51 +79,20 @@ All four must pass. Do not present a phase as done if any of these fail.
 
 ---
 
-## 6. Package Versions (pinned, verified May 2026)
+## 6. Package Versions
 
-Never upgrade or downgrade without confirming the new version from PyPI first. Always pin exact versions.
+Dependencies are managed via `uv.lock` for reproducible installs. `pyproject.toml` declares floating deps — the lockfile is the source of truth for exact versions. Never delete or manually edit `uv.lock`.
 
-### Backend
+Run `uv sync --frozen` (or `uv sync --no-dev --frozen` in Docker) to install exactly what the lockfile specifies.
 
-```
-fastapi==0.136.1
-uvicorn[standard]==0.47.0
-langchain==1.3.0
-langgraph==1.2.0
-langchain-aws==1.4.6
-langchain-tavily==0.2.18
-pydantic==2.13.4
-pydantic-settings==2.14.1
-boto3==1.43.8
-httpx==0.28.1
-python-json-logger==4.1.0
-```
+### Backend dependencies
+`fastapi`, `uvicorn[standard]`, `langchain`, `langgraph`, `langchain-aws`, `langchain-tavily`, `pydantic`, `pydantic-settings`, `python-json-logger`
 
-Dev:
-```
-pytest==8.4.2
-pytest-asyncio==1.1.0
-pytest-mock==3.15.1
-ruff==0.15.13
-mypy==2.1.0
-boto3-stubs[bedrock-runtime]==1.43.8
-```
+### Frontend dependencies
+`streamlit`, `httpx`, `pydantic-settings`
 
-### Frontend
-
-```
-streamlit==1.57.0
-httpx==0.28.1
-pydantic==2.13.4
-pydantic-settings==2.14.1
-```
-
-### Infrastructure
-
-```
-aws-cdk-lib==2.254.0
-constructs>=10.5.0
-```
+### Infrastructure dependencies
+`aws-cdk-lib==2.254.0`, `constructs>=10.5.0`
 
 ---
 
@@ -132,12 +100,12 @@ constructs>=10.5.0
 
 - **LLM:** Amazon Nova Pro via AWS Bedrock (`amazon.nova-pro-v1:0`)
 - **Search:** Tavily (`langchain-tavily`) with `include_domains=["docs.aws.amazon.com"]`
-- **Agent:** LangGraph 1.2.0 with self-correcting retrieval loop (max 3 retries)
-- **Session memory:** `MemorySaver` with `thread_id = session_id`
-- **Backend:** FastAPI with `lifespan` context, `StreamingResponse` SSE for `/chat`
-- **Frontend:** Streamlit calling FastAPI via `httpx.AsyncClient`
-- **Infra:** AWS CDK Python, ECS Fargate, public subnets + security groups (no NAT Gateway)
-- **Service communication:** ECS Service Connect (`http://backend:8000`)
+- **Agent:** LangChain `create_agent` (ReAct tool-calling agent with LangGraph execution backend) — the agent autonomously decides when to call Tavily and what query to use
+- **Session memory:** LangGraph `MemorySaver` checkpointer with `thread_id = session_id`
+- **Backend:** FastAPI with `lifespan` context, synchronous JSON response on `/chat` via `agent.ainvoke`
+- **Frontend:** Streamlit calling FastAPI via `httpx.Client` (synchronous — Streamlit is not async)
+- **Infra:** AWS CDK Python, ECS Fargate, public subnets only (no NAT Gateway)
+- **Service communication:** Frontend calls backend via ALB DNS URL (`BACKEND_URL` env var)
 - **IaC:** 2 CDK stacks — `EcrStack`, `EcsStack`
 - **No Bedrock Knowledge Base, no S3, no OpenSearch Serverless**
 
@@ -166,3 +134,27 @@ docs/superpowers/specs/2026-05-15-aws-support-bot-design.md
 ```
 
 Read it before starting any implementation work.
+
+---
+
+## 10. Known Tech Debt
+
+These are known gaps identified in code review. Do not work around them — fix them properly when addressed.
+
+**Security (priority)**
+- `TAVILY_API_KEY` is passed as a plaintext ECS environment variable. Should be stored in AWS Secrets Manager and injected via `secrets` in the task definition.
+- `tavily_api_key: str` in `config.py` should be `SecretStr` to prevent the value appearing in logs and tracebacks.
+- Both Dockerfiles run the process as root. Add `USER nobody` before `CMD`.
+
+**Error handling**
+- `/chat` route has no exception handling — a Bedrock throttle or Tavily timeout returns a raw 500. Should catch and return a clean `503 Service Unavailable`.
+
+**CI/CD**
+- `build.yml` builds Docker images locally but never pushes to ECR. It is a build-check workflow, not a real build pipeline. Needs ECR push + ECS force-redeploy steps (blocked on OIDC setup).
+
+**Docker**
+- Neither service has a `.dockerignore`. Build context includes `tests/`, `.venv/`, and `__pycache__/` unnecessarily.
+
+**Tests**
+- Agent tests only assert configuration passed to mocks — no behavioural coverage.
+- No test for the error path when `agent.ainvoke` raises an exception.
